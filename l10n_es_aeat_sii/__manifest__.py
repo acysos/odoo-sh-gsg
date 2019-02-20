@@ -26,7 +26,7 @@
         "account_payment_partner",
     ],
     "data": [
-        "data/ir_config_parameter.xml",
+#        "data/ir_config_parameter.xml",
         "data/aeat_sii_mapping_registration_keys_data.xml",
         "data/aeat_sii_map_data.xml",
         "data/aeat_sii_map_data_1_1.xml",
