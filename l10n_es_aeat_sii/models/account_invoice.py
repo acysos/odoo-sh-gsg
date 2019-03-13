@@ -610,6 +610,11 @@ class AccountInvoice(models.Model):
                                                     'DetalleExenta'][
                                                         'BaseImponible'], 2
                                             )
+        if 'DesgloseTipoOperacion' in taxes_sii and \
+                'DesgloseFactura' in taxes_sii:
+            taxes_sii['DesgloseTipoOperacion']['Entrega'] = \
+                taxes_sii['DesgloseFactura']
+            del taxes_sii['DesgloseFactura']
         return taxes_sii
 
     @api.multi
