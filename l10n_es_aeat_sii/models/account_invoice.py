@@ -791,10 +791,12 @@ class AccountInvoice(models.Model):
                 importe_total = self.amount_total
             if (self.currency_id !=
                     self.company_id.currency_id):
-                importe_total = self.currency_id.with_context(
-                    date=self._get_currency_rate_date(
-                        )).compute(importe_total,
-                                   self.company_id.currency_id)
+                importe_total = round(
+                    self.currency_id.with_context(
+                        date=self._get_currency_rate_date(
+                            )).compute(importe_total,
+                                    self.company_id.currency_id),
+                    2)
             invoices = {
                 "IDFactura": {
                     "IDEmisorFactura": {
@@ -1189,7 +1191,6 @@ class AccountInvoice(models.Model):
                 _logger.info("Canarias")
                 dic_ret = {"NIF": self.partner_id.vat[2:]}
             else:
-                _logger.info("Otro")
                 dic_ret = {
                     "IDOtro": {
                         "CodigoPais":
