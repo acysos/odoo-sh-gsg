@@ -22,10 +22,12 @@ class MisBudgetItem(models.Model):
     budget_date_from = fields.Date(
         related='budget_id.date_from',
         readonly=True,
+        string="Budget Date From"
     )
     budget_date_to = fields.Date(
         related='budget_id.date_to',
         readonly=True,
+        string="Budget Date To"
     )
     report_id = fields.Many2one(
         related='budget_id.report_id',
@@ -44,6 +46,10 @@ class MisBudgetItem(models.Model):
     analytic_account_id = fields.Many2one(
         comodel_name='account.analytic.account',
         string="Analytic account",
+    )
+    analytic_tag_ids = fields.Many2many(
+        comodel_name='account.analytic.tag',
+        string='Analytic Tags',
     )
 
     @api.onchange('date_range_id')

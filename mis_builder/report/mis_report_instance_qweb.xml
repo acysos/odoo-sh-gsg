@@ -33,6 +33,15 @@
                   <span t-field="company.name" /><span t-if="company != o.query_company_ids[-1]">, </span>
                 </t>
               </h3>
+              <p>
+                <div class="mis_report_filers">
+                  <t t-foreach="o.get_filter_descriptions_from_context()" t-as="filter_description">
+                    <div>
+                      <span t-esc="filter_description"/>
+                    </div>
+                  </t>
+                </div>
+              </p>
               <div class="mis_table">
                 <div class="mis_thead">
                   <div class="mis_row">
@@ -66,7 +75,7 @@
                 </div>
                 <div class="mis_tbody">
                   <t t-foreach="matrix.iter_rows()" t-as="row">
-                    <div t-if="not row.style_props.hide_empty or not row.is_empty()" class="mis_row">
+                    <div t-if="not ((row.style_props.hide_empty and row.is_empty()) or row.style_props.hide_always)" class="mis_row">
                       <div t-att-style="style_obj.to_css_style(row.style_props)" class="mis_cell mis_rowlabel">
                         <t t-esc="row.label"/>
                         <t t-if="row.description">

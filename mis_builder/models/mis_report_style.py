@@ -36,6 +36,7 @@ PROPS = [
     'dp',
     'divider',
     'hide_empty',
+    'hide_always',
 ]
 
 TYPE_NUM = 'num'
@@ -50,6 +51,7 @@ CMP_NONE = 'none'
 class MisReportKpiStyle(models.Model):
 
     _name = 'mis.report.style'
+    _description = 'MIS Report Style'
 
     @api.constrains('indent_level')
     def check_positive_val(self):
@@ -137,6 +139,8 @@ class MisReportKpiStyle(models.Model):
                                default='1')
     hide_empty_inherit = fields.Boolean(default=True)
     hide_empty = fields.Boolean(default=False)
+    hide_always_inherit = fields.Boolean(default=True)
+    hide_always = fields.Boolean(default=False)
 
     @api.model
     def merge(self, styles):
@@ -246,24 +250,31 @@ class MisReportKpiStyle(models.Model):
             return AccountingNone, '', style_r
 
     @api.model
-    def to_xlsx_style(self, props, no_indent=False):
-        num_format = u'0'
-        if props.dp:
-            num_format += u'.'
-            num_format += u'0' * props.dp
-        if props.prefix:
-            num_format = u'"{} "{}'.format(props.prefix, num_format)
-        if props.suffix:
-            num_format = u'{}" {}"'.format(num_format, props.suffix)
-
+    def to_xlsx_style(self, type, props, no_indent=False):
         xlsx_attributes = [
             ('italic', props.font_style == 'italic'),
             ('bold', props.font_weight == 'bold'),
             ('size', self._font_size_to_xlsx_size.get(props.font_size, 11)),
             ('font_color', props.color),
             ('bg_color', props.background_color),
-            ('num_format', num_format),
         ]
+        if type == TYPE_NUM:
+            num_format = u'#,##0'
+            if props.dp:
+                num_format += u'.'
+                num_format += u'0' * props.dp
+            if props.prefix:
+                num_format = u'"{} "{}'.format(props.prefix, num_format)
+            if props.suffix:
+                num_format = u'{}" {}"'.format(num_format, props.suffix)
+            xlsx_attributes.append(('num_format', num_format))
+        elif type == TYPE_PCT:
+            num_format = u'0'
+            if props.dp:
+                num_format += u'.'
+                num_format += u'0' * props.dp
+            num_format += '%'
+            xlsx_attributes.append(('num_format', num_format))
         if props.indent_level is not None and not no_indent:
             xlsx_attributes.append(
                 ('indent', props.indent_level))
