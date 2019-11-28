@@ -11,7 +11,6 @@ from requests import Session
 
 from odoo import _, api, fields, exceptions, models
 from odoo.exceptions import UserError, RedirectWarning, ValidationError
-from odoo.modules.registry import Registry
 
 _logger = logging.getLogger(__name__)
 
@@ -244,7 +243,7 @@ class AccountInvoice(models.Model):
              ('date_to', '>=', fields.Date.today()),
              ('date_to', '=', False)], limit=1)
         if not sii_map:
-            raise exceptions.Warning(_(
+            raise UserError(_(
                 'SII Map not found. Check your configuration'))
         return sii_map
 
@@ -356,8 +355,8 @@ class AccountInvoice(models.Model):
         if (self.currency_id !=
                 self.company_id.currency_id):
             taxes_total = self.currency_id.with_context(
-                date=self._get_currency_rate_date()).compute(
-                    taxes_total, self.company_id.currency_id)
+                    date=self._get_currency_rate_date()).compute(
+                        taxes_total, self.company_id.currency_id)
             taxes_amount = self.currency_id.with_context(
                 date=self._get_currency_rate_date()).compute(
                     taxes['taxes'][0]['amount'],
@@ -582,16 +581,16 @@ class AccountInvoice(models.Model):
                             type_breakdown[
                                 'PrestacionServicios']['Sujeta']['NoExenta'][
                                 'DesgloseIVA']['DetalleIVA'] = []
-                            tax_type = tax_line.amount * 100
-                            if str(tax_type) not in taxes_to:
-                                taxes_to[str(tax_type)] = \
-                                    self._get_sii_tax_line(
-                                        tax_line, line,
-                                        line.invoice_line_tax_ids)
-                            else:
-                                taxes_to = self._update_sii_tax_line(
-                                    taxes_to, tax_line, line,
+                        tax_type = tax_line.amount * 100
+                        if str(tax_type) not in taxes_to:
+                            taxes_to[str(tax_type)] = \
+                                self._get_sii_tax_line(
+                                    tax_line, line,
                                     line.invoice_line_tax_ids)
+                        else:
+                            taxes_to = self._update_sii_tax_line(
+                                taxes_to, tax_line, line,
+                                line.invoice_line_tax_ids)
         if len(taxes_f) > 0:
             for key, line in taxes_f.items():
                 if self.type == 'out_refund' and self.refund_type == 'I':
@@ -634,21 +633,26 @@ class AccountInvoice(models.Model):
                     'Sujeta']['NoExenta']['DesgloseIVA'][
                     'DetalleIVA'].append(line)
         if 'DesgloseTipoOperacion' in taxes_sii:
-            if 'Entrega' in taxes_sii['DesgloseTipoOperacion']:
-                if 'Sujeta' in taxes_sii['DesgloseTipoOperacion']['Entrega']:
+            if 'Entrega' in taxes_sii['DesgloseTipoOperacion'] or \
+                    'PrestacionServicios' in taxes_sii['DesgloseTipoOperacion']:
+                if 'Entrega' in taxes_sii['DesgloseTipoOperacion']:
+                    dt_key = 'Entrega'
+                else:
+                    dt_key = 'PrestacionServicios'
+                if 'Sujeta' in taxes_sii['DesgloseTipoOperacion'][dt_key]:
                     if 'Exenta' in taxes_sii['DesgloseTipoOperacion'][
-                            'Entrega']['Sujeta']:
+                            dt_key]['Sujeta']:
                         if 'DetalleExenta' in taxes_sii[
-                            'DesgloseTipoOperacion']['Entrega']['Sujeta'][
+                            'DesgloseTipoOperacion'][dt_key]['Sujeta'][
                                 'Exenta']:
                             if 'BaseImponible' in taxes_sii[
-                                'DesgloseTipoOperacion']['Entrega']['Sujeta'][
+                                'DesgloseTipoOperacion'][dt_key]['Sujeta'][
                                     'Exenta']['DetalleExenta']:
                                 taxes_sii[
-                                'DesgloseTipoOperacion']['Entrega']['Sujeta'][
+                                'DesgloseTipoOperacion'][dt_key]['Sujeta'][
                                     'Exenta']['DetalleExenta'][
                                         'BaseImponible'] = round(taxes_sii[
-                                            'DesgloseTipoOperacion']['Entrega'][
+                                            'DesgloseTipoOperacion'][dt_key][
                                                 'Sujeta']['Exenta'][
                                                     'DetalleExenta'][
                                                         'BaseImponible'], 2
@@ -716,8 +720,12 @@ class AccountInvoice(models.Model):
                         line['CuotaSoportada'] = \
                             abs(round(line['CuotaSoportada'], 2))
                     line['BaseImponible'] = round(line['BaseImponible'], 2)
+                if self.registration_key.code in ['03', '05', '09', '16']:
+                    line['CuotaSoportada'] = abs(round(0, 2))
                 if line.get('TipoImpositivo', False):
                     line['TipoImpositivo'] = round(line['TipoImpositivo'], 2)
+                    if self.registration_key.code in ['03', '05', '09', '16']:
+                        line['TipoImpositivo'] = round(0, 2)
                 taxes_sii['DesgloseIVA']['DetalleIVA'].append(line)
         if len(taxes_isp) > 0:
             for key, line in taxes_isp.items():
@@ -728,11 +736,13 @@ class AccountInvoice(models.Model):
                     if line.get('CuotaSoportada', False):
                         line['CuotaSoportada'] = \
                             -round(line['CuotaSoportada'], 2)
+                    line['BaseImponible'] = -round(
+                        line['BaseImponible'], 2)
                 else:
                     if line.get('CuotaSoportada', False):
                         line['CuotaSoportada'] = \
                             round(line['CuotaSoportada'], 2)
-                line['BaseImponible'] = round(line['BaseImponible'], 2)
+                    line['BaseImponible'] = round(line['BaseImponible'], 2)
                 if line.get('TipoImpositivo', False):
                     line['TipoImpositivo'] = round(line['TipoImpositivo'], 2)
                 taxes_sii['InversionSujetoPasivo']['DetalleIVA'].append(line)
@@ -857,6 +867,11 @@ class AccountInvoice(models.Model):
                     importe_total = -abs(self.amount_total)
             else:
                 importe_total = self.amount_total
+            if (self.currency_id !=
+                    self.company_id.currency_id):
+                importe_total = self.currency_id.with_context(
+                    date=self._get_currency_rate_date()).compute(
+                        importe_total, self.company_id.currency_id)
             if not self.reference:
                 raise UserError(_(
                     'The invoice supplier number is required'))
@@ -1186,11 +1201,12 @@ class AccountInvoice(models.Model):
             }
             dic_ret = self._fix_country_code(dic_ret)
         elif self.fiscal_position_id.name == \
-                u'Régimen Extracomunitario / Canarias, Ceuta y Melilla':
+                u'Régimen Extracomunitario':
             if vat[:2] == 'ES':
                 _logger.info("Canarias")
                 dic_ret = {"NIF": self.partner_id.vat[2:]}
             else:
+                _logger.info("Otro")
                 dic_ret = {
                     "IDOtro": {
                         "CodigoPais":
@@ -1239,6 +1255,7 @@ class AccountInvoice(models.Model):
     @api.multi
     def _drop_invoice(self):
         """ Drop invoice from SII"""
+        queue_obj = self.env['queue.job'].sudo()
         for invoice in self.filtered(lambda i: i.state in ['cancel']):
             sii_map = invoice._get_sii_map()
             company = invoice.company_id
